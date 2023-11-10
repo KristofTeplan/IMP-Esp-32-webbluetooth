@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+  <html>
+    <head>
+      <title>Increment, Decrement, and Show Devices</title>
+      <style>
+        #container {
+          text-align: center;
+          font-size: 24px;
+        }
+        #number {
+          display: inline-block;
+          width: 60px;
+        }
+        #buttons {
+          display: inline-block;
+        }
+        button {
+          font-size: 24px;
+          padding: 10px 20px;
+        }
+      </style>
+    </head>
+
+    <body>
+      <div id="container">
+        <div>
+          <label for="bpm">BPM:</label>
+          <input type="number" id="bpm" min="1" max="255" value="60">
+        </div>
+        <div>
+          <label for="volume">Volume:</label>
+          <input type="number" id="volume" min="0" max="8" value="2">
+        </div>
+        <div>
+          <label for="beepLength">Beep Length (ms):</label>
+          <input type="number" id="beepLength" min="1" max="255" value="250">
+        </div>
+        <button id="applySettings">Apply</button>
+        <br>
+        <button id="showDevices">Show Devices</button>
+        <ul id="deviceList"></ul>
+      </div>
+
+
+
+
+      <script>
+        const numberElement = document.getElementById("number");
+        const showDevicesButton = document.getElementById("showDevices");
+        const applyDevicesButton = document.getElementById("applySettings");
+        const deviceList = document.getElementById("deviceList");
+        const serviceUUID = "5035fbd0-7d40-11ee-b962-0242ac120002";
+        const bpmCharacteristicUUID = "8835439a-7d42-11ee-b962-0242ac120002";
+        const volumeCharacteristicUUID = "912554cc-7d42-11ee-b962-0242ac120002";
+        const beepLengthCharacteristicUUID = "95fd1818-7d42-11ee-b962-0242ac120002";
+
+        var bpm_input_value;
+        var volume_input_value;
+        var beep_length_input_value;
+
+        let connectedDevice = null;
+
+        /////////////////////////
+        // Show devices button //
+        /////////////////////////
+        showDevicesButton.addEventListener("click", async () => {
+          deviceList.textContent = "Loading...";
+
+          try {
+            const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [serviceUUID] }] }); // Filtering devices, to show only my Esp-32
+            //const server = await device.gatt.connect(); // Connecting and creating gatt server
+
+            connectedDevice = device; // Store the connected device
+            deviceList.textContent = "Connected to device: " + device.name;
+
+          } 
+          catch (error) {
+            console.error('Error:', error);
+            deviceList.textContent = "Error: " + error;
+          }
+        });
+        ///////////////////////////////////
+        // Apply values to device button //
+        ///////////////////////////////////
+        applyDevicesButton.addEventListener("click", () => {
+          // Saving values from input fields
+          bpm_input_value = Uint8Array.of(parseInt(document.getElementById("bpm").value));
+          volume_input_value = Uint8Array.of(parseInt(document.getElementById("volume").value));
+          beep_length_input_value = Uint8Array.of(parseInt(document.getElementById("beepLength").value));
+
+          if (connectedDevice) 
+          {
+            if(parseInt(document.getElementById("bpm").value) < 1 || parseInt(document.getElementById("bpm").value) > 255 || 
+            parseInt(document.getElementById("volume").value) < 0 || parseInt(document.getElementById("volume").value) > 8 || 
+            parseInt(document.getElementById("beepLength").value) < 1 || parseInt(document.getElementById("beepLength").value) > 255)
+            {
+              console.error("Error: Invalid values!");
+              deviceList.textContent = "Invalid values!";
+              return 1;
+            }
+            else if(60000 / parseInt(document.getElementById("bpm").value) <= parseInt(document.getElementById("beepLength").value))
+            {
+              console.error("Error: Invalid values!");
+              deviceList.textContent = "Too long beep length or bpm too high to hear the beep!";
+              return 1;
+            }
+            else
+            {
+              deviceList.textContent = "Values are valid!";
+            }
+            
+            connectedDevice.gatt.connect()
+              .then(server => server.getPrimaryService(serviceUUID))
+              .then(service => {
+                // Write to BPM characteristic
+                service.getCharacteristic(bpmCharacteristicUUID)
+                  .then(characteristic => {
+                    return characteristic.writeValue(bpm_input_value);
+                  })
+                  .then(() => {
+                    console.log("BPM set successfully.");
+                  })
+                  .catch(error => {
+                    console.error("Error setting BPM characteristic: " + error);
+                    deviceList.textContent = "Error setting BPM characteristic: " + error;
+                  });
+
+                // Write to Volume characteristic
+                service.getCharacteristic(volumeCharacteristicUUID)
+                  .then(characteristic => {
+                    return characteristic.writeValue(volume_input_value);
+                  })
+                  .then(() => {
+                    console.log("Volume set successfully.");
+                  })
+                  .catch(error => {
+                    console.error("Error setting Volume characteristic: " + error);
+                    deviceList.textContent = "Error setting Volume characteristic: " + error;
+                  });
+
+                // Write to Beep Length characteristic
+                service.getCharacteristic(beepLengthCharacteristicUUID)
+                  .then(characteristic => {
+                    return characteristic.writeValue(beep_length_input_value);
+                  })
+                  .then(() => {
+                    console.log("Beep Length set successfully.");
+                  })
+                  .catch(error => {
+                    console.error("Error setting Beep Length characteristic: " + error);
+                    deviceList.textContent = "Error setting Beep Length characteristic: " + error;
+                  });
+              })
+              .catch(error => {
+                console.error("Error connecting to GATT service: " + error);
+                deviceList.textContent = "Error connecting to GATT service: " + error;
+              });
+          } 
+          else {
+            console.log("No connected device available.");
+            deviceList.textContent = "No connected device available";
+          }
+        });
+      </script>
+    </body>
+  </html>
