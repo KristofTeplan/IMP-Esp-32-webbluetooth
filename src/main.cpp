@@ -1,4 +1,5 @@
 #include <ArduinoBLE.h>
+#include <Ticker.h>
 #include <math.h>
 
 BLEService metronomService("5035fbd0-7d40-11ee-b962-0242ac120002");  // Define a custom metronome service
@@ -21,7 +22,6 @@ int beepLength = 600;
 
 hw_timer_t *timerTurnOFF = NULL;
 hw_timer_t *timerTurnON = NULL;
-hw_timer_t *timerLED = NULL;
 
 bool ledON = false;
 
@@ -40,8 +40,8 @@ void IRAM_ATTR beep_ON_interrupt() {
     analogWrite(speakerPin, pow(2, volume)); //Humans can hear volume in exponencial differences
   }
 
-  digitalWrite(ledPin, HIGH); //Visualisation timing
-  timerRestart(timerTurnOFF); //
+  digitalWrite(ledPin, HIGH); //Visualisation of timing
+  timerRestart(timerTurnOFF); //Synchronization of timers
   timerAlarmEnable(timerTurnOFF);
 }
 
@@ -67,6 +67,21 @@ void setup() {
   timerTurnON = timerBegin(1, 80, true);
   timerAttachInterrupt(timerTurnON, &beep_ON_interrupt, true);
   timerAlarmWrite(timerTurnON, 60*1000000/bpm - beepLength, true);
+
+  // Starting in beep ON state
+  if(volume == 8)
+  {
+    analogWrite(speakerPin, 255); //Special case, using formula 2^8 = 256 but PWM has range 0-255
+  }
+  else if(volume == 0)
+  {
+    analogWrite(speakerPin, 0); //Special case, using formula 2^0 = 1 but we want complete silence
+  }
+  else
+  {
+    analogWrite(speakerPin, pow(2, volume)); //Humans can hear volume in exponencial differences
+  }
+  digitalWrite(ledPin, HIGH);
 
   // Starting timerTurnOFF. This timer will then start second timer in its interrupt handler. Second timer will restart this timer and so on in a loop
   timerAlarmEnable(timerTurnOFF);
@@ -98,7 +113,7 @@ void loop() {
   // Listen for BLE peripheral events
   BLEDevice central = BLE.central();
 
-  if (central) 
+  if (central)
   {
     Serial.print("Connected to central: ");
     Serial.println(central.address());
